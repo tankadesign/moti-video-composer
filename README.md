@@ -1,0 +1,1 @@
+Requires FFMPEG with libfdk_aac and libx264 installed to the system
