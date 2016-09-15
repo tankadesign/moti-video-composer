@@ -15,9 +15,11 @@ AWS.config.region = 'us-east-1';
 var eventEmitter = new events.EventEmitter();
 var downloadPath = '';
 firebase.initializeApp({
-	serviceAccount: './keys/fbServiceAccountCredentials.json',
+	serviceAccount: process.env.FIREBASE_CREDENTIALS_FILE_PATH,
 	databaseURL: process.env.FIREBASE_DATABASE_URL
 })
+const archivedBucketURL = 'https://s3.amazonaws.com/' + process.env.S3_ARCHIVE_BUCKET;
+const composedBucketURL = 'https://s3.amazonaws.com/' + process.env.S3_COMPOSED_VIDEO_BUCKET;
 var db = firebase.database();
 var s3 = new AWS.S3();
 
@@ -29,7 +31,7 @@ router.post('/process_video/:id', function(req, res, next) {
 	var ref = db.ref(path);
 	ref.once("value", function (snapshot) {
 		if (!snapshot.exists()) {
-			ref.set({status: 'start', percentage: 0, url: 'https://s3.amazonaws.com/moti-video-composer/' + id + '.mp4', downloads: 0, discards: 0}, function (error) {
+			ref.set({status: 'start', percentage: 0, url: composedBucketURL + '/' + id + '.mp4', downloads: 0, discards: 0}, function (error) {
 				if (error == null) {
 					downloadZipAndProcess(id);
 					res.json({status: 'transcode_begin'});
@@ -61,13 +63,13 @@ function downloadZipAndProcess (id) {
 			console.log('failed to create temp dir');
 		} else {
 			downloadPath = folder + path.sep
-			var folder = '45532082/' + id + '/';
+			var folder = process.env.TOKBOX_ACCOUNT_ID + '/' + id + '/';
 			var zipPath = downloadPath + id + '.zip';
 			var file = fs.createWriteStream(zipPath);
 			file.on('end', function () {
 				console.log('filestream end');
 			});
-			var params = {Bucket: 'motichat-tokbox-archives', Key: folder + 'archive.zip'};
+			var params = {Bucket: process.env.S3_ARCHIVE_BUCKET, Key: folder + 'archive.zip'};
 			s3.getObject(params)
 				.on('httpData', function(chunk) {
 					file.write(chunk);
@@ -146,7 +148,7 @@ function parseDescriptorFile (id, callback) {
 }
 function postVideoToS3 (id) {
 	var file = fs.createReadStream(downloadPath + id + '.mp4')
-	var params = {Bucket: 'moti-video-composer', Key: id + '.mp4', Body: file};
+	var params = {Bucket: process.env.S3_COMPOSED_VIDEO_BUCKET, Key: id + '.mp4', Body: file};
 	s3.upload(params, function (err, data) {
 		if (err) {
 			console.log('upload error:', err);
